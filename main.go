@@ -15,15 +15,15 @@ func main() {
 	handler := http.StripPrefix("/app", http.FileServer(http.Dir(".")))
 	apiCfg := &apiConfig{}
 
-	serverMux.Handle("GET /app", apiCfg.middlewareMetricsInc(handler))
-	serverMux.Handle("GET /app/assets/logo.png", apiCfg.middlewareMetricsInc(handler))
-	serverMux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+	serverMux.Handle("GET /app/", apiCfg.middlewareMetricsInc(handler))
+
+	serverMux.HandleFunc("GET /api/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
 	})
-	serverMux.HandleFunc("GET /metrics", apiCfg.metrics)
-	serverMux.HandleFunc("POST /reset", apiCfg.reset)
+	serverMux.HandleFunc("GET /api/metrics", apiCfg.metrics)
+	serverMux.HandleFunc("POST /api/reset", apiCfg.reset)
 
 	server := http.Server{
 		Handler: serverMux,
