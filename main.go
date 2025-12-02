@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"sync/atomic"
 )
 
@@ -60,45 +61,73 @@ func (ac *apiConfig) reset(w http.ResponseWriter, r *http.Request) {
 }
 
 func validateChirp(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+	const maxChirpLength = 140
 	chirp := struct {
 		Body string `json:"body"`
 	}{}
 
 	if err := json.NewDecoder(r.Body).Decode(&chirp); err != nil {
-		log.Printf("Error decoding parameters: %s", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
 		return
 	}
 
-	if len(chirp.Body) > 140 {
-		errMsg := ErrorMessage{
-			Error: "Chirp is too long",
-		}
-		msg, err := json.Marshal(errMsg)
-		if err != nil {
-			log.Printf("Error marshalling JSON: %s", err)
-			w.WriteHeader(500)
-			return
-		}
-
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write(msg)
+	if len(chirp.Body) > maxChirpLength {
+		respondWithError(w, http.StatusBadRequest, "Chirp is too long", nil)
 		return
 	}
+	cleanBody := replaceWords(chirp.Body)
 
-	valid := struct {
-		Valid bool `json:"valid"`
+	cleanChip := struct {
+		CleanedBody string `json:"cleaned_body"`
 	}{
-		Valid: true,
+		CleanedBody: cleanBody,
 	}
-	msg, err := json.Marshal(valid)
+	respondWithJSON(w, http.StatusOK, cleanChip)
+}
+
+func replaceWords(msg string) (newMsg string) {
+	rWords := map[string]bool{
+		"kerfuffle": true,
+		"sharbert":  true,
+		"fornax":    true,
+	}
+
+	words := strings.Split(msg, " ")
+	for i, word := range words {
+		lower := strings.ToLower(word)
+		if rWords[lower] {
+			words[i] = "****"
+		}
+	}
+
+	newMsg = strings.Join(words, " ")
+	return newMsg
+}
+
+func respondWithError(w http.ResponseWriter, code int, msg string, err error) {
+	if err != nil {
+		log.Println(err)
+	}
+	if code > 499 {
+		log.Printf("Responding with 5XX error: %s", msg)
+	}
+	type errorResponse struct {
+		Error string `json:"error"`
+	}
+	respondWithJSON(w, code, errorResponse{
+		Error: msg,
+	})
+}
+
+func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	data, err := json.Marshal(payload)
 	if err != nil {
 		log.Printf("Error marshalling JSON: %s", err)
 		w.WriteHeader(500)
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	w.Write(msg)
+	w.WriteHeader(code)
+	w.Write(data)
 }
