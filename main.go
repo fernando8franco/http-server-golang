@@ -9,8 +9,10 @@ import (
 	"os"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/fernando8franco/http-server-golang/internal/database"
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
@@ -18,6 +20,7 @@ import (
 type apiConfig struct {
 	fileserverHits atomic.Int32
 	db             *database.Queries
+	platform       string
 }
 
 type ErrorMessage struct {
@@ -27,6 +30,8 @@ type ErrorMessage struct {
 func main() {
 	godotenv.Load()
 	dbURL := os.Getenv("DB_URL")
+	platform := os.Getenv("PLATFORM")
+
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		log.Fatalf("Error opening database: %s", err)
@@ -36,6 +41,7 @@ func main() {
 	apiCfg := &apiConfig{
 		fileserverHits: atomic.Int32{},
 		db:             dbQueries,
+		platform:       platform,
 	}
 
 	serverMux := http.NewServeMux()
@@ -49,6 +55,7 @@ func main() {
 		w.Write([]byte("OK"))
 	})
 	serverMux.HandleFunc("POST /api/validate_chirp", validateChirp)
+	serverMux.HandleFunc("POST /api/users", apiCfg.createUser)
 
 	serverMux.HandleFunc("GET /admin/metrics", apiCfg.metrics)
 	serverMux.HandleFunc("POST /admin/reset", apiCfg.reset)
@@ -75,8 +82,19 @@ func (ac *apiConfig) metrics(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ac *apiConfig) reset(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
+	if ac.platform != "dev" {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+
 	ac.fileserverHits.Store(0)
+	err := ac.db.DeleteUsers(r.Context())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't delete the users", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func validateChirp(w http.ResponseWriter, r *http.Request) {
@@ -102,6 +120,41 @@ func validateChirp(w http.ResponseWriter, r *http.Request) {
 		CleanedBody: cleanBody,
 	}
 	respondWithJSON(w, http.StatusOK, cleanChip)
+}
+
+type UserCreate struct {
+	Email string `json:"email"`
+}
+
+type User struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Email     string    `json:"email"`
+}
+
+func (ac *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
+	var newUser UserCreate
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&newUser)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
+		return
+	}
+
+	userDB, err := ac.db.CreateUser(r.Context(), newUser.Email)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't create the user", err)
+		return
+	}
+	user := User{
+		ID:        userDB.ID,
+		CreatedAt: userDB.CreatedAt,
+		UpdatedAt: userDB.UpdatedAt,
+		Email:     userDB.Email,
+	}
+
+	respondWithJSON(w, http.StatusCreated, user)
 }
 
 func replaceWords(msg string) (newMsg string) {
