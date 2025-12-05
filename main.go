@@ -2,17 +2,13 @@ package main
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"strings"
 	"sync/atomic"
-	"time"
 
 	"github.com/fernando8franco/http-server-golang/internal/database"
-	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
@@ -95,111 +91,4 @@ func (ac *apiConfig) reset(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-}
-
-func validateChirp(w http.ResponseWriter, r *http.Request) {
-	const maxChirpLength = 140
-	chirp := struct {
-		Body string `json:"body"`
-	}{}
-
-	if err := json.NewDecoder(r.Body).Decode(&chirp); err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
-		return
-	}
-
-	if len(chirp.Body) > maxChirpLength {
-		respondWithError(w, http.StatusBadRequest, "Chirp is too long", nil)
-		return
-	}
-	cleanBody := replaceWords(chirp.Body)
-
-	cleanChip := struct {
-		CleanedBody string `json:"cleaned_body"`
-	}{
-		CleanedBody: cleanBody,
-	}
-	respondWithJSON(w, http.StatusOK, cleanChip)
-}
-
-type UserCreate struct {
-	Email string `json:"email"`
-}
-
-type User struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Email     string    `json:"email"`
-}
-
-func (ac *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
-	var newUser UserCreate
-	decoder := json.NewDecoder(r.Body)
-	err := decoder.Decode(&newUser)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
-		return
-	}
-
-	userDB, err := ac.db.CreateUser(r.Context(), newUser.Email)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Couldn't create the user", err)
-		return
-	}
-	user := User{
-		ID:        userDB.ID,
-		CreatedAt: userDB.CreatedAt,
-		UpdatedAt: userDB.UpdatedAt,
-		Email:     userDB.Email,
-	}
-
-	respondWithJSON(w, http.StatusCreated, user)
-}
-
-func replaceWords(msg string) (newMsg string) {
-	rWords := map[string]bool{
-		"kerfuffle": true,
-		"sharbert":  true,
-		"fornax":    true,
-	}
-
-	words := strings.Split(msg, " ")
-	for i, word := range words {
-		lower := strings.ToLower(word)
-		if rWords[lower] {
-			words[i] = "****"
-		}
-	}
-
-	newMsg = strings.Join(words, " ")
-	return newMsg
-}
-
-func respondWithError(w http.ResponseWriter, code int, msg string, err error) {
-	if err != nil {
-		log.Println(err)
-	}
-	if code > 499 {
-		log.Printf("Responding with 5XX error: %s", msg)
-	}
-	type errorResponse struct {
-		Error string `json:"error"`
-	}
-	respondWithJSON(w, code, errorResponse{
-		Error: msg,
-	})
-}
-
-func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	data, err := json.Marshal(payload)
-	if err != nil {
-		log.Printf("Error marshalling JSON: %s", err)
-		w.WriteHeader(500)
-		return
-	}
-
-	w.WriteHeader(code)
-	w.Write(data)
 }
