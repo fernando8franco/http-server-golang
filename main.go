@@ -26,7 +26,13 @@ type ErrorMessage struct {
 func main() {
 	godotenv.Load()
 	dbURL := os.Getenv("DB_URL")
+	if dbURL == "" {
+		log.Fatal("DB_URL must be set")
+	}
 	platform := os.Getenv("PLATFORM")
+	if platform == "" {
+		log.Fatal("PLATFORM must be set")
+	}
 
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
@@ -79,7 +85,7 @@ func (ac *apiConfig) metrics(w http.ResponseWriter, r *http.Request) {
 
 func (ac *apiConfig) reset(w http.ResponseWriter, r *http.Request) {
 	if ac.platform != "dev" {
-		w.WriteHeader(http.StatusForbidden)
+		respondWithError(w, http.StatusForbidden, "Reset is only allowed in dev environment", nil)
 		return
 	}
 
