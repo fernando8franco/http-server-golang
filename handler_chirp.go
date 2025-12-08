@@ -1,7 +1,9 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -74,11 +76,11 @@ func (ac *apiConfig) getAllChirps(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	reponse := []Chirp{}
+	resp := []Chirp{}
 
 	for _, chirp := range chirps {
-		reponse = append(
-			reponse,
+		resp = append(
+			resp,
 			Chirp{
 				Id:        chirp.ID,
 				CreatedAt: chirp.CreatedAt,
@@ -89,7 +91,43 @@ func (ac *apiConfig) getAllChirps(w http.ResponseWriter, r *http.Request) {
 		)
 	}
 
-	respondWithJSON(w, http.StatusOK, reponse)
+	respondWithJSON(w, http.StatusOK, resp)
+}
+
+func (ac *apiConfig) getOneChirp(w http.ResponseWriter, r *http.Request) {
+	chirpIdStr := r.PathValue("chirpId")
+	chirpId, err := uuid.Parse(chirpIdStr)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "The chirp UUID is not valid", err)
+		return
+	}
+
+	type response struct {
+		Chirp
+	}
+
+	chirp, err := ac.db.GetOneChirp(r.Context(), chirpId)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			respondWithError(w, http.StatusNotFound, "The chirp doesn't exist", err)
+			return
+		}
+
+		respondWithError(w, http.StatusInternalServerError, "Couldn't retrieve chirp", err)
+		return
+	}
+
+	resp := response{
+		Chirp: Chirp{
+			Id:        chirp.ID,
+			CreatedAt: chirp.CreatedAt,
+			UpdatedAt: chirp.UpdatedAt,
+			Body:      chirp.Body,
+			UserId:    chirp.UserID,
+		},
+	}
+
+	respondWithJSON(w, http.StatusOK, resp)
 }
 
 func replaceWords(msg string) (newMsg string) {
