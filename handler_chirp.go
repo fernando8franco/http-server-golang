@@ -67,6 +67,31 @@ func (ac *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, http.StatusCreated, resp)
 }
 
+func (ac *apiConfig) getAllChirps(w http.ResponseWriter, r *http.Request) {
+	chirps, err := ac.db.GetAllChirps(r.Context())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't retrieve chirps", err)
+		return
+	}
+
+	reponse := []Chirp{}
+
+	for _, chirp := range chirps {
+		reponse = append(
+			reponse,
+			Chirp{
+				Id:        chirp.ID,
+				CreatedAt: chirp.CreatedAt,
+				UpdatedAt: chirp.UpdatedAt,
+				Body:      chirp.Body,
+				UserId:    chirp.UserID,
+			},
+		)
+	}
+
+	respondWithJSON(w, http.StatusOK, reponse)
+}
+
 func replaceWords(msg string) (newMsg string) {
 	rWords := map[string]bool{
 		"kerfuffle": true,
