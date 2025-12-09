@@ -57,6 +57,8 @@ func main() {
 		w.Write([]byte("OK"))
 	})
 	serverMux.HandleFunc("POST /api/users", apiCfg.createUser)
+	serverMux.HandleFunc("POST /api/login", apiCfg.loginUser)
+
 	serverMux.HandleFunc("POST /api/chirps", apiCfg.createChirp)
 	serverMux.HandleFunc("GET /api/chirps", apiCfg.getAllChirps)
 	serverMux.HandleFunc("GET /api/chirps/{chirpId}", apiCfg.getOneChirp)
