@@ -19,14 +19,6 @@ type User struct {
 	Email     string    `json:"email"`
 }
 
-type UserLogin struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Email     string    `json:"email"`
-	Token     string    `json:"token"`
-}
-
 func (ac *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
 		Email    string `json:"email"`
@@ -80,7 +72,8 @@ func (ac *apiConfig) loginUser(w http.ResponseWriter, r *http.Request) {
 		ExpiresInSeconds int    `json:"expires_in_seconds"`
 	}
 	type response struct {
-		UserLogin
+		User
+		Token string `json:"token"`
 	}
 
 	params := parameters{}
@@ -113,27 +106,25 @@ func (ac *apiConfig) loginUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var expiration time.Duration
-	if params.ExpiresInSeconds <= 0 || params.ExpiresInSeconds > 3600 {
-		expiration = 3600 * time.Second
-	} else {
-		expiration = time.Duration(params.ExpiresInSeconds) * time.Second
+	expirationTime := time.Hour
+	if params.ExpiresInSeconds > 0 && params.ExpiresInSeconds < 3600 {
+		expirationTime = time.Duration(params.ExpiresInSeconds) * time.Second
 	}
 
-	token, err := auth.MakeJWT(user.ID, ac.secret, expiration)
+	token, err := auth.MakeJWT(user.ID, ac.secret, expirationTime)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't create the token", err)
 		return
 	}
 
 	resp := response{
-		UserLogin: UserLogin{
+		User: User{
 			ID:        user.ID,
 			CreatedAt: user.CreatedAt,
 			UpdatedAt: user.UpdatedAt,
 			Email:     user.Email,
-			Token:     token,
 		},
+		Token: token,
 	}
 
 	respondWithJSON(w, http.StatusOK, resp)

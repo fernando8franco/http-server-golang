@@ -14,9 +14,11 @@ import (
 type TokenType string
 
 const (
-	authPrefix                = "Bearer "
 	TokenTypeAccess TokenType = "chirpy"
 )
+
+var ErrNoAuthHeaderIncluded = errors.New("no auth header included in request")
+var ErrMalformedAuthHeader = errors.New("malformed authorization header")
 
 func HashPassword(password string) (string, error) {
 	hashPassword, err := argon2id.CreateHash(password, argon2id.DefaultParams)
@@ -87,10 +89,13 @@ func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error) {
 func GetBearerToken(headers http.Header) (string, error) {
 	authHeader := headers.Get("Authorization")
 	if authHeader == "" {
-		return "", errors.New("the Authorization header doesn't exist")
+		return "", ErrNoAuthHeaderIncluded
 	}
 
-	token := strings.TrimPrefix(authHeader, authPrefix)
+	splitAuth := strings.Split(authHeader, " ")
+	if len(splitAuth) < 2 || splitAuth[0] != "Bearer" {
+		return "", errors.New("malformed authorization header")
+	}
 
-	return token, nil
+	return splitAuth[1], nil
 }

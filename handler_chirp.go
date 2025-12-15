@@ -30,14 +30,6 @@ func (ac *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
 		Chirp
 	}
 
-	params := parameters{}
-	decoder := json.NewDecoder(r.Body)
-	err := decoder.Decode(&params)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
-		return
-	}
-
 	token, err := auth.GetBearerToken(r.Header)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "The Authorization header don't exist", err)
@@ -47,6 +39,14 @@ func (ac *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
 	userId, err := auth.ValidateJWT(token, ac.secret)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't validate the token", err)
+		return
+	}
+
+	params := parameters{}
+	decoder := json.NewDecoder(r.Body)
+	err = decoder.Decode(&params)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
 		return
 	}
 
