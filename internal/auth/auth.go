@@ -14,8 +14,8 @@ import (
 type TokenType string
 
 const (
-	TokenTypeAccess TokenType = "chirpy"
 	authPrefix                = "Bearer "
+	TokenTypeAccess TokenType = "chirpy"
 )
 
 func HashPassword(password string) (string, error) {
