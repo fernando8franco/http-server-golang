@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fernando8franco/http-server-golang/internal/auth"
 	"github.com/fernando8franco/http-server-golang/internal/database"
 	"github.com/google/uuid"
 )
@@ -23,8 +24,7 @@ type Chirp struct {
 func (ac *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
 	const maxChirpLength = 140
 	type parameters struct {
-		Body   string    `json:"body"`
-		UserId uuid.UUID `json:"user_id"`
+		Body string `json:"body"`
 	}
 	type response struct {
 		Chirp
@@ -38,6 +38,18 @@ func (ac *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "The Authorization header don't exist", err)
+		return
+	}
+
+	userId, err := auth.ValidateJWT(token, ac.secret)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't validate the token", err)
+		return
+	}
+
 	if len(params.Body) > maxChirpLength {
 		respondWithError(w, http.StatusBadRequest, "Chirp is too long", nil)
 		return
@@ -48,7 +60,7 @@ func (ac *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
 		r.Context(),
 		database.CreateChirpParams{
 			Body:   cleanBody,
-			UserID: params.UserId,
+			UserID: userId,
 		},
 	)
 	if err != nil {

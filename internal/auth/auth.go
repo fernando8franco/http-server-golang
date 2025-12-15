@@ -2,6 +2,8 @@ package auth
 
 import (
 	"errors"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/alexedwards/argon2id"
@@ -13,6 +15,7 @@ type TokenType string
 
 const (
 	TokenTypeAccess TokenType = "chirpy"
+	authPrefix                = "Bearer "
 )
 
 func HashPassword(password string) (string, error) {
@@ -79,4 +82,15 @@ func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error) {
 	}
 
 	return id, nil
+}
+
+func GetBearerToken(headers http.Header) (string, error) {
+	authHeader := headers.Get("Authorization")
+	if authHeader == "" {
+		return "", errors.New("the Authorization header doesn't exist")
+	}
+
+	token := strings.TrimPrefix(authHeader, authPrefix)
+
+	return token, nil
 }
