@@ -32,13 +32,13 @@ func (ac *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
 
 	token, err := auth.GetBearerToken(r.Header)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "The Authorization header don't exist", err)
+		respondWithError(w, http.StatusUnauthorized, "The Authorization header don't exist", err)
 		return
 	}
 
 	userId, err := auth.ValidateJWT(token, ac.secret)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Couldn't validate the token", err)
+		respondWithError(w, http.StatusUnauthorized, "Couldn't validate the token", err)
 		return
 	}
 

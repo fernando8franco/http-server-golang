@@ -67,13 +67,13 @@ func (ac *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
 
 func (ac *apiConfig) loginUser(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
-		Email            string `json:"email"`
-		Password         string `json:"password"`
-		ExpiresInSeconds int    `json:"expires_in_seconds"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
 	}
 	type response struct {
 		User
-		Token string `json:"token"`
+		AccessToken  string `json:"token"`
+		RefreshToken string `json:"refresh_token"`
 	}
 
 	params := parameters{}
@@ -107,13 +107,29 @@ func (ac *apiConfig) loginUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	expirationTime := time.Hour
-	if params.ExpiresInSeconds > 0 && params.ExpiresInSeconds < 3600 {
-		expirationTime = time.Duration(params.ExpiresInSeconds) * time.Second
-	}
-
-	token, err := auth.MakeJWT(user.ID, ac.secret, expirationTime)
+	accessToken, err := auth.MakeJWT(user.ID, ac.secret, expirationTime)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't create the token", err)
+		return
+	}
+
+	refreshToken, err := auth.MakeRefreshToken()
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't create the refresh token", err)
+		return
+	}
+
+	refreshTokenParams := database.CreateRefreshTokenParams{
+		Token:  refreshToken,
+		UserID: user.ID,
+		RevokedAt: sql.NullTime{
+			Valid: false,
+		},
+	}
+
+	_, err = ac.db.CreateRefreshToken(r.Context(), refreshTokenParams)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't create the refresh token", err)
 		return
 	}
 
@@ -124,8 +140,70 @@ func (ac *apiConfig) loginUser(w http.ResponseWriter, r *http.Request) {
 			UpdatedAt: user.UpdatedAt,
 			Email:     user.Email,
 		},
-		Token: token,
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
 	}
 
 	respondWithJSON(w, http.StatusOK, resp)
+}
+
+func (ac *apiConfig) refreshToken(w http.ResponseWriter, r *http.Request) {
+	type response struct {
+		AccessToken string `json:"token"`
+	}
+
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "The Authorization header don't exist", err)
+		return
+	}
+
+	refreshToken, err := ac.db.GetRefreshToken(r.Context(), token)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			respondWithError(w, http.StatusUnauthorized, "The token doesn't exist", err)
+			return
+		}
+
+		respondWithError(w, http.StatusInternalServerError, "Couldn't retrieve the token", err)
+		return
+	}
+
+	if refreshToken.RevokedAt.Valid || refreshToken.ExpiresAt.Before(time.Now().UTC()) {
+		respondWithError(w, http.StatusUnauthorized, "The token is expired", err)
+		return
+	}
+
+	expirationTime := time.Hour
+	accessToken, err := auth.MakeJWT(refreshToken.UserID, ac.secret, expirationTime)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't create the token", err)
+		return
+	}
+
+	resp := response{
+		AccessToken: accessToken,
+	}
+	respondWithJSON(w, http.StatusOK, resp)
+}
+
+func (ac *apiConfig) revokeToken(w http.ResponseWriter, r *http.Request) {
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "The Authorization header don't exist", err)
+		return
+	}
+
+	err = ac.db.SetRevokedAt(r.Context(), token)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			respondWithError(w, http.StatusUnauthorized, "The token doesn't exist", err)
+			return
+		}
+
+		respondWithError(w, http.StatusInternalServerError, "Couldn't update the token", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
