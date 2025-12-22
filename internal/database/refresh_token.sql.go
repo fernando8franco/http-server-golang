@@ -7,25 +7,23 @@ package database
 
 import (
 	"context"
-	"database/sql"
 
 	"github.com/google/uuid"
 )
 
 const createRefreshToken = `-- name: CreateRefreshToken :one
-INSERT INTO refresh_tokens (token, created_at, updated_at, user_id, expires_at, revoked_at)
-VALUES ($1, NOW(), NOW(), $2, NOW() + INTERVAL '60 days', $3)
+INSERT INTO refresh_tokens (token, created_at, updated_at, user_id, expires_at)
+VALUES ($1, NOW(), NOW(), $2, NOW() + INTERVAL '60 days')
 RETURNING token, created_at, updated_at, user_id, expires_at, revoked_at
 `
 
 type CreateRefreshTokenParams struct {
-	Token     string
-	UserID    uuid.UUID
-	RevokedAt sql.NullTime
+	Token  string
+	UserID uuid.UUID
 }
 
 func (q *Queries) CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (RefreshToken, error) {
-	row := q.db.QueryRowContext(ctx, createRefreshToken, arg.Token, arg.UserID, arg.RevokedAt)
+	row := q.db.QueryRowContext(ctx, createRefreshToken, arg.Token, arg.UserID)
 	var i RefreshToken
 	err := row.Scan(
 		&i.Token,
@@ -38,23 +36,18 @@ func (q *Queries) CreateRefreshToken(ctx context.Context, arg CreateRefreshToken
 	return i, err
 }
 
-const getRefreshToken = `-- name: GetRefreshToken :one
-SELECT token, created_at, updated_at, user_id, expires_at, revoked_at FROM refresh_tokens
+const getUserIdFromRefreshToken = `-- name: GetUserIdFromRefreshToken :one
+SELECT user_id FROM refresh_tokens
 WHERE token = $1
+AND revoked_at IS NULL
+AND expires_at > NOW()
 `
 
-func (q *Queries) GetRefreshToken(ctx context.Context, token string) (RefreshToken, error) {
-	row := q.db.QueryRowContext(ctx, getRefreshToken, token)
-	var i RefreshToken
-	err := row.Scan(
-		&i.Token,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.UserID,
-		&i.ExpiresAt,
-		&i.RevokedAt,
-	)
-	return i, err
+func (q *Queries) GetUserIdFromRefreshToken(ctx context.Context, token string) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, getUserIdFromRefreshToken, token)
+	var user_id uuid.UUID
+	err := row.Scan(&user_id)
+	return user_id, err
 }
 
 const setRevokedAt = `-- name: SetRevokedAt :exec

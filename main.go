@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"sync/atomic"
+	"time"
 
 	"github.com/fernando8franco/http-server-golang/internal/database"
 	"github.com/joho/godotenv"
@@ -18,6 +19,7 @@ type apiConfig struct {
 	db             *database.Queries
 	platform       string
 	secret         string
+	expirationTime time.Duration
 }
 
 type ErrorMessage struct {
@@ -50,6 +52,7 @@ func main() {
 		db:             dbQueries,
 		platform:       platform,
 		secret:         secret,
+		expirationTime: time.Hour,
 	}
 
 	serverMux := http.NewServeMux()
@@ -64,6 +67,7 @@ func main() {
 	})
 	serverMux.HandleFunc("POST /api/users", apiCfg.createUser)
 	serverMux.HandleFunc("POST /api/login", apiCfg.loginUser)
+
 	serverMux.HandleFunc("POST /api/refresh", apiCfg.refreshToken)
 	serverMux.HandleFunc("POST /api/revoke", apiCfg.revokeToken)
 

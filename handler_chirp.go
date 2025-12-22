@@ -1,9 +1,7 @@
 package main
 
 import (
-	"database/sql"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -30,13 +28,13 @@ func (ac *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
 		Chirp
 	}
 
-	token, err := auth.GetBearerToken(r.Header)
+	accessToken, err := auth.GetBearerToken(r.Header)
 	if err != nil {
-		respondWithError(w, http.StatusUnauthorized, "The Authorization header don't exist", err)
+		respondWithError(w, http.StatusUnauthorized, "Couldn't find the refresh token", err)
 		return
 	}
 
-	userId, err := auth.ValidateJWT(token, ac.secret)
+	userId, err := auth.ValidateJWT(accessToken, ac.secret)
 	if err != nil {
 		respondWithError(w, http.StatusUnauthorized, "Couldn't validate the token", err)
 		return
@@ -46,7 +44,7 @@ func (ac *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	err = decoder.Decode(&params)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
+		respondWithError(w, http.StatusInternalServerError, "Couldn't decode the parameters", err)
 		return
 	}
 
@@ -84,7 +82,7 @@ func (ac *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
 func (ac *apiConfig) getAllChirps(w http.ResponseWriter, r *http.Request) {
 	chirps, err := ac.db.GetAllChirps(r.Context())
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Couldn't retrieve chirps", err)
+		respondWithError(w, http.StatusInternalServerError, "Couldn't retrieve the chirps", err)
 		return
 	}
 
@@ -110,7 +108,7 @@ func (ac *apiConfig) getOneChirp(w http.ResponseWriter, r *http.Request) {
 	chirpIdStr := r.PathValue("chirpId")
 	chirpId, err := uuid.Parse(chirpIdStr)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "The chirp UUID is not valid", err)
+		respondWithError(w, http.StatusInternalServerError, "Invalid chirp Id", err)
 		return
 	}
 
@@ -120,12 +118,7 @@ func (ac *apiConfig) getOneChirp(w http.ResponseWriter, r *http.Request) {
 
 	chirp, err := ac.db.GetOneChirp(r.Context(), chirpId)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			respondWithError(w, http.StatusNotFound, "The chirp doesn't exist", err)
-			return
-		}
-
-		respondWithError(w, http.StatusInternalServerError, "Couldn't retrieve chirp", err)
+		respondWithError(w, http.StatusNotFound, "Couldn't retrieve the chirp", err)
 		return
 	}
 
@@ -143,16 +136,16 @@ func (ac *apiConfig) getOneChirp(w http.ResponseWriter, r *http.Request) {
 }
 
 func replaceWords(msg string) (newMsg string) {
-	rWords := map[string]bool{
-		"kerfuffle": true,
-		"sharbert":  true,
-		"fornax":    true,
+	rWords := map[string]struct{}{
+		"kerfuffle": {},
+		"sharbert":  {},
+		"fornax":    {},
 	}
 
 	words := strings.Split(msg, " ")
 	for i, word := range words {
 		lower := strings.ToLower(word)
-		if rWords[lower] {
+		if _, ok := rWords[lower]; ok {
 			words[i] = "****"
 		}
 	}

@@ -96,17 +96,15 @@ func GetBearerToken(headers http.Header) (string, error) {
 
 	splitAuth := strings.Split(authHeader, " ")
 	if len(splitAuth) < 2 || splitAuth[0] != "Bearer" {
-		return "", errors.New("malformed authorization header")
+		return "", ErrMalformedAuthHeader
 	}
 
 	return splitAuth[1], nil
 }
 
-func MakeRefreshToken() (string, error) {
+func MakeRefreshToken() string {
 	key := make([]byte, 32)
 	rand.Read(key)
 
-	refreshToken := hex.EncodeToString(key)
-
-	return refreshToken, nil
+	return hex.EncodeToString(key)
 }
