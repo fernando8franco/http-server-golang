@@ -13,3 +13,14 @@ ORDER BY created_at ASC;
 -- name: GetOneChirp :one
 SELECT * FROM chirps
 WHERE id = $1;
+
+-- name: UserOwnsChirp :one
+SELECT EXISTS (
+    SELECT 1
+    FROM chirps
+    WHERE user_id = $1
+);
+
+-- name: DeleteChirpById :exec
+DELETE FROM chirps
+WHERE id = $1;

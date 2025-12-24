@@ -135,6 +135,41 @@ func (ac *apiConfig) getOneChirp(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, http.StatusOK, resp)
 }
 
+func (ac *apiConfig) deleteChirp(w http.ResponseWriter, r *http.Request) {
+	chirpIdStr := r.PathValue("chirpId")
+	chirpId, err := uuid.Parse(chirpIdStr)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Invalid chirp Id", err)
+		return
+	}
+
+	accessToken, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Couldn't find the refresh token", err)
+		return
+	}
+
+	userId, err := auth.ValidateJWT(accessToken, ac.secret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Couldn't validate the token", err)
+		return
+	}
+
+	hasChirp, err := ac.db.UserOwnsChirp(r.Context(), userId)
+	if err != nil || !hasChirp {
+		respondWithError(w, http.StatusForbidden, "Couldn't validate the user", err)
+		return
+	}
+
+	err = ac.db.DeleteChirpById(r.Context(), chirpId)
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, "Couldn't delete the chirp", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func replaceWords(msg string) (newMsg string) {
 	rWords := map[string]struct{}{
 		"kerfuffle": {},
