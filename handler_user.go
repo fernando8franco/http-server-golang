@@ -127,3 +127,63 @@ func (ac *apiConfig) loginUser(w http.ResponseWriter, r *http.Request) {
 
 	respondWithJSON(w, http.StatusOK, resp)
 }
+
+func (ac *apiConfig) updateUser(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	type response struct {
+		User
+	}
+
+	accessToken, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Couldn't find the refresh token", err)
+		return
+	}
+
+	userId, err := auth.ValidateJWT(accessToken, ac.secret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Couldn't validate the token", err)
+		return
+	}
+
+	params := parameters{}
+	decoder := json.NewDecoder(r.Body)
+	err = decoder.Decode(&params)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't decode the parameters", err)
+		return
+	}
+
+	hashedPassword, err := auth.HashPassword(params.Password)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't hash the password", err)
+		return
+	}
+
+	updatedUser, err := ac.db.UpdateUser(
+		r.Context(),
+		database.UpdateUserParams{
+			Email:          params.Email,
+			HashedPassword: hashedPassword,
+			ID:             userId,
+		},
+	)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't update the user", err)
+		return
+	}
+
+	resp := response{
+		User: User{
+			ID:        updatedUser.ID,
+			CreatedAt: updatedUser.CreatedAt,
+			UpdatedAt: updatedUser.UpdatedAt,
+			Email:     updatedUser.Email,
+		},
+	}
+
+	respondWithJSON(w, http.StatusOK, resp)
+}

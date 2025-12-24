@@ -66,6 +66,7 @@ func main() {
 		w.Write([]byte("OK"))
 	})
 	serverMux.HandleFunc("POST /api/users", apiCfg.createUser)
+	serverMux.HandleFunc("PUT /api/users", apiCfg.updateUser)
 	serverMux.HandleFunc("POST /api/login", apiCfg.loginUser)
 
 	serverMux.HandleFunc("POST /api/refresh", apiCfg.refreshToken)
