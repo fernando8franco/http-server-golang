@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/fernando8franco/http-server-golang/internal/auth"
 	"github.com/google/uuid"
 )
 
@@ -15,9 +16,20 @@ func (ac *apiConfig) polkaWebhook(w http.ResponseWriter, r *http.Request) {
 		} `json:"data"`
 	}
 
+	apiKey, err := auth.GetAPIKey(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Couldn't find the api key", err)
+		return
+	}
+
+	if apiKey != ac.polkaKey {
+		respondWithError(w, http.StatusUnauthorized, "Couldn't validate the api key", nil)
+		return
+	}
+
 	params := parameters{}
 	decoder := json.NewDecoder(r.Body)
-	err := decoder.Decode(&params)
+	err = decoder.Decode(&params)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't decode the parameters", err)
 		return

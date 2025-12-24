@@ -20,6 +20,7 @@ type apiConfig struct {
 	platform       string
 	secret         string
 	expirationTime time.Duration
+	polkaKey       string
 }
 
 type ErrorMessage struct {
@@ -40,6 +41,10 @@ func main() {
 	if secret == "" {
 		log.Fatal("SECRET must be set")
 	}
+	polkaKey := os.Getenv("POLKA_KEY")
+	if polkaKey == "" {
+		log.Fatal("POLKA_KEY must be set")
+	}
 
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
@@ -53,6 +58,7 @@ func main() {
 		platform:       platform,
 		secret:         secret,
 		expirationTime: time.Hour,
+		polkaKey:       polkaKey,
 	}
 
 	serverMux := http.NewServeMux()

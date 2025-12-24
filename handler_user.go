@@ -59,7 +59,7 @@ func (ac *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
 			CreatedAt:   user.CreatedAt,
 			UpdatedAt:   user.UpdatedAt,
 			Email:       user.Email,
-			IsChirpyRed: user.IsChirpyRed.Bool,
+			IsChirpyRed: user.IsChirpyRed,
 		},
 	}
 
@@ -122,7 +122,7 @@ func (ac *apiConfig) loginUser(w http.ResponseWriter, r *http.Request) {
 			CreatedAt:   user.CreatedAt,
 			UpdatedAt:   user.UpdatedAt,
 			Email:       user.Email,
-			IsChirpyRed: user.IsChirpyRed.Bool,
+			IsChirpyRed: user.IsChirpyRed,
 		},
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
@@ -185,7 +185,7 @@ func (ac *apiConfig) updateUser(w http.ResponseWriter, r *http.Request) {
 			CreatedAt:   updatedUser.CreatedAt,
 			UpdatedAt:   updatedUser.UpdatedAt,
 			Email:       updatedUser.Email,
-			IsChirpyRed: updatedUser.IsChirpyRed.Bool,
+			IsChirpyRed: updatedUser.IsChirpyRed,
 		},
 	}
 
